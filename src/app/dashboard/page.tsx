@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { LogOut, Settings, Flame } from 'lucide-react';
+import { LogOut, Settings, Flame, Zap, BookOpen, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
 import SkillProgressCard from '@/components/dashboard/SkillProgressCard';
 import XPBar from '@/components/dashboard/XPBar';
 import StatsCard from '@/components/dashboard/StatsCard';
 import { DashboardStats } from '@/types';
-import { SKILL_CATEGORIES } from '@/lib/constants';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -81,6 +81,17 @@ export default function Dashboard() {
       <nav className="border-b border-white/10 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <h1 className="text-3xl font-bold">🎮 Questify</h1>
+          <div className="hidden md:flex gap-6 items-center text-sm">
+            <Link href="/history" className="text-gray-300 hover:text-white transition">
+              📊 History
+            </Link>
+            <Link href="/achievements" className="text-gray-300 hover:text-white transition">
+              🏆 Achievements
+            </Link>
+            <Link href="/insights" className="text-gray-300 hover:text-white transition">
+              ✨ Insights
+            </Link>
+          </div>
           <div className="flex gap-4 items-center">
             <button
               onClick={() => router.push('/profile')}
@@ -173,6 +184,49 @@ export default function Dashboard() {
           className="mb-12"
         >
           <XPBar level={stats.level} currentXp={stats.totalXp} />
+        </motion.div>
+
+        {/* Quick Links */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="grid md:grid-cols-4 gap-4 mb-12"
+        >
+          <Link
+            href="/activities"
+            className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-2 border-purple-500/50 rounded-lg p-4 hover:border-purple-400 transition"
+          >
+            <BookOpen className="w-6 h-6 mb-2" />
+            <p className="font-medium">Log Activity</p>
+          </Link>
+          <Link
+            href="/history"
+            className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-2 border-blue-500/50 rounded-lg p-4 hover:border-blue-400 transition"
+          >
+            <TrendingUp className="w-6 h-6 mb-2" />
+            <p className="font-medium">View History</p>
+          </Link>
+          <Link
+            href="/achievements"
+            className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/50 rounded-lg p-4 hover:border-yellow-400 transition"
+          >
+            <motion.div
+              animate={{ rotate: [0, 10, 0] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-6 h-6 mb-2"
+            >
+              🏆
+            </motion.div>
+            <p className="font-medium">Achievements</p>
+          </Link>
+          <Link
+            href="/insights"
+            className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-2 border-green-500/50 rounded-lg p-4 hover:border-green-400 transition"
+          >
+            <Zap className="w-6 h-6 mb-2" />
+            <p className="font-medium">AI Insights</p>
+          </Link>
         </motion.div>
 
         {/* Skills Grid */}
