@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String?
+  password      String
+  avatar        String?
+  bio           String?
+  level         Int        @default(1)
+  totalXp       Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  activities    Activity[]
+  userSkills    UserSkill[]
+  streaks       Streak[]
+  badges        Badge[]
+  monthlySnapshots MonthlySnapshot[]
+
+  @@index([email])
+}
+
+// Skill Categories
+model Skill {
+  id              String      @id @default(cuid())
+  name            String      @unique
+  description     String
+  icon            String?
+  baseMultiplier  Float       @default(1.0)
+  createdAt       DateTime    @default(now())
+
+  // Relations
+  userSkills      UserSkill[]
+  activitySkillMaps ActivitySkillMap[]
+
+  @@index([name])
+}
+
+// User's current month skill progress
+model UserSkill {
+  id              String      @id @default(cuid())
+  userId          String
+  skillId         String
+  progress        Float       @default(0) // 0-100
+  month           Int
+  year            Int
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill           Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId, month, year])
+  @@index([userId, month, year])
+}
+
+// Daily activities
+model Activity {
+  id              String      @id @default(cuid())
+  userId          String
+  name            String
+  description     String?
+  durationMinutes Int
+  date            DateTime    @default(now())
+  xpReward        Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillMaps       ActivitySkillMap[]
+
+  @@index([userId, date])
+}
+
+// Maps activities to skills and their progress increases
+model ActivitySkillMap {
+  id              String      @id @default(cuid())
+  activityId      String
+  skillId         String
+  progressIncrease Float       // How much progress this activity adds to the skill
+  createdAt       DateTime    @default(now())
+
+  // Relations
+  activity        Activity    @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  skill           Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
+  @@index([skillId])
+}
+
+// Monthly history snapshots
+model MonthlySnapshot {
+  id              String      @id @default(cuid())
+  userId          String
+  month           Int
+  year            Int
+  skillSnapshots  Json        // { [skillId]: { name, progress } }
+  totalActivities Int         @default(0)
+  totalXpGained   Int         @default(0)
+  level           Int         @default(1)
+  createdAt       DateTime    @default(now())
+
+  // Relations
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month, year])
+  @@index([userId])
+}
+
+// Badges/Achievements
+model Badge {
+  id              String      @id @default(cuid())
+  userId          String
+  name            String
+  description     String
+  icon            String?
+  category        String      // e.g., "StudyMaster", "FitnessChampion"
+  unlockedAt      DateTime    @default(now())
+  createdAt       DateTime    @default(now())
+
+  // Relations
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
+}
+
+// Streak tracking
+model Streak {
+  id              String      @id @default(cuid())
+  userId          String
+  type            String      @default("daily") // daily, weekly, monthly
+  count           Int         @default(0)
+  lastActivityDate DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId])
+}
