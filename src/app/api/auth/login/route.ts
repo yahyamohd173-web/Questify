@@ -5,63 +5,49 @@ import jwt from 'jsonwebtoken';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    const body = await req.json();
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
 
-    // Validation
     if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Missing email or password' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
     }
 
-    // Verify password
-    const isPasswordValid = await verifyPassword(password, user.password);
-
-    if (!isPasswordValid) {
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
+    const valid = await verifyPassword(password, user.password);
+    if (!valid) {
+      return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
     }
 
-    // Create JWT token
-    const token = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-      },
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: '30d' }
-    );
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      console.error('JWT_SECRET is not configured.');
+      return NextResponse.json({ error: 'Server authentication is not configured yet.' }, { status: 500 });
+    }
 
-    // Return user data and token (without password)
-    const { password: _, ...userWithoutPassword } = user;
-    return NextResponse.json(
-      {
-        message: 'Login successful',
-        token,
-        user: userWithoutPassword,
-      },
+    const token = jwt.sign({ userId: user.id, email: user.email }, secret, { expiresIn: '30d' });
+    const { password: _, ...safeUser } = user;
+
+    const response = NextResponse.json(
+      { message: 'Login successful.', user: safeUser },
       { status: 200 }
     );
+
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    });
+
+    return response;
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'Failed to login' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Unable to log in right now. Please try again.' }, { status: 500 });
   }
 }
