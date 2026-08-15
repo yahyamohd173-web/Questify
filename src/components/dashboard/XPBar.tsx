@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { calculateLevelFromXp, getXpInCurrentLevel, getTotalXpForCurrentLevel } from '@/lib/utils';
+import { getXpInCurrentLevel, getTotalXpForCurrentLevel } from '@/lib/utils';
 
 interface XPBarProps {
   level: number;
@@ -11,7 +11,7 @@ interface XPBarProps {
 export default function XPBar({ level, currentXp }: XPBarProps) {
   const xpInLevel = getXpInCurrentLevel(currentXp);
   const totalXpForLevel = getTotalXpForCurrentLevel(currentXp);
-  const progressPercent = (xpInLevel / totalXpForLevel) * 100;
+  const progressPercent = totalXpForLevel > 0 ? (xpInLevel / totalXpForLevel) * 100 : 0;
 
   return (
     <motion.div
@@ -30,17 +30,16 @@ export default function XPBar({ level, currentXp }: XPBarProps) {
         </div>
       </div>
 
-      {/* Progress Bar */}
       <div className="w-full bg-white/10 rounded-full h-4 overflow-hidden border border-white/20">
         <motion.div
           initial={{ width: 0 }}
-          animate={{ width: `${progressPercent}%` }}
+          animate={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
           transition={{ duration: 1, ease: 'easeOut' }}
           className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
         />
       </div>
 
-      <p className="text-xs text-gray-400 mt-2">{Math.round(progressPercent)}% to level {level + 1}</p>
+      <p className="text-xs text-gray-400 mt-2">{Math.round(Math.min(100, Math.max(0, progressPercent)))}% to level {level + 1}</p>
     </motion.div>
   );
 }
