@@ -1,35 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 
-const protectedRoutes = ['/dashboard', '/activities', '/history', '/profile'];
+const protectedRoutes = ['/dashboard', '/activities', '/history', '/profile', '/achievements', '/insights'];
 const publicRoutes = ['/login', '/signup', '/forgot-password'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('token')?.value;
+  const secret = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
+  const isProtected = protectedRoutes.some((route) => pathname.startsWith(route));
+  const isPublic = publicRoutes.some((route) => pathname.startsWith(route));
 
-  // Check if route is protected
-  const isProtected = protectedRoutes.some(route => pathname.startsWith(route));
-  const isPublic = publicRoutes.some(route => pathname.startsWith(route));
+  if (isProtected && !token) return NextResponse.redirect(new URL('/login', request.url));
 
-  // If protected route and no token, redirect to login
-  if (isProtected && !token) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  if (isProtected && token && secret) {
+    try {
+      jwt.verify(token, secret);
+    } catch {
+      const response = NextResponse.redirect(new URL('/login', request.url));
+      response.cookies.set('token', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 0 });
+      return response;
+    }
   }
 
-  // If public route and has token, redirect to dashboard
-  if (isPublic && token) {
+  if (isPublic && token && secret) {
     try {
-      jwt.verify(token, process.env.JWT_SECRET || 'secret');
+      jwt.verify(token, secret);
       return NextResponse.redirect(new URL('/dashboard', request.url));
-    } catch (error) {
-      // Token invalid, allow access to public route
+    } catch {
+      // Invalid token: clear it and allow the public page.
+      const response = NextResponse.next();
+      response.cookies.set('token', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 0 });
+      return response;
     }
   }
 
   return NextResponse.next();
 }
 
-export const config = {
-  matcher: ['/((?!api|_next|public).*)'],
-};
+export const config = { matcher: ['/((?!api|_next|public).*)'] };
