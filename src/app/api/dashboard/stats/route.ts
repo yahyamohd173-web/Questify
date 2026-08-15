@@ -6,45 +6,30 @@ import { getCurrentMonthYear, getProgressColor } from '@/lib/utils';
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: 'Missing authorization header' },
-        { status: 401 }
-      );
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    const token = bearerToken || req.cookies.get('token')?.value;
+    const secret = process.env.JWT_SECRET;
+
+    if (!token || !secret) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any;
-    const userId = decoded.userId;
+    const decoded = jwt.verify(token, secret) as { userId?: string };
+    if (!decoded.userId) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
 
-    // Get user
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get current month year
     const { month, year } = getCurrentMonthYear();
-
-    // Get user skills
     const userSkills = await prisma.userSkill.findMany({
-      where: {
-        userId,
-        month,
-        year,
-      },
-      include: {
-        skill: true,
-      },
+      where: { userId: user.id, month, year },
+      include: { skill: true },
     });
 
-    // Format skills with colors
     const skills = userSkills.map((us) => ({
       id: us.skill.id,
       name: us.skill.name,
@@ -54,55 +39,34 @@ export async function GET(req: NextRequest) {
       color: getProgressColor(us.progress),
     }));
 
-    // Get streaks
-    const streaks = await prisma.streak.findMany({
-      where: { userId },
-    });
-
+    const streaks = await prisma.streak.findMany({ where: { userId: user.id } });
     const dailyStreak = streaks.find((s) => s.type === 'daily')?.count || 0;
     const monthlyStreak = streaks.find((s) => s.type === 'monthly')?.count || 0;
 
-    // Get today's activities
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const todayActivities = await prisma.activity.count({
-      where: {
-        userId,
-        date: {
-          gte: today,
-          lt: tomorrow,
-        },
+    const [todayActivities, totalActivities] = await Promise.all([
+      prisma.activity.count({ where: { userId: user.id, date: { gte: today, lt: tomorrow } } }),
+      prisma.activity.count({ where: { userId: user.id } }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        totalXp: user.totalXp,
+        level: user.level,
+        dailyStreak,
+        monthlyStreak,
+        todayActivities,
+        totalActivities,
+        skills,
       },
     });
-
-    // Get total activities
-    const totalActivities = await prisma.activity.count({
-      where: { userId },
-    });
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          totalXp: user.totalXp,
-          level: user.level,
-          dailyStreak,
-          monthlyStreak,
-          todayActivities,
-          totalActivities,
-          skills,
-        },
-      },
-      { status: 200 }
-    );
   } catch (error) {
     console.error('Dashboard error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch dashboard' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Session expired. Please log in again.' }, { status: 401 });
   }
 }
